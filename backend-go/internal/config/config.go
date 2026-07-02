@@ -479,6 +479,12 @@ type Config struct {
 	// 驾驶舱 override 默认有效期（分钟，1-1440；0 或未设置时使用环境变量 OVERRIDE_TTL_MINUTES）
 	OverrideTTLMinutes int `json:"overrideTtlMinutes,omitempty"`
 
+	// 启用 Usage 估算：上游未返回 tokens 时，本地估算 input/output tokens（默认关闭）
+	EnableUsageEstimation bool `json:"enableUsageEstimation,omitempty"`
+
+	// 启用会话追踪：为驾驶舱/历史记录功能持久化会话消息（默认关闭）
+	EnableConversationTracking bool `json:"enableConversationTracking,omitempty"`
+
 	// 熔断器运行时配置（可选，nil 使用环境变量或代码默认值）
 	CircuitBreaker *CircuitBreakerConfig `json:"circuitBreaker,omitempty"`
 }

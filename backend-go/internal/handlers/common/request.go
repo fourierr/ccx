@@ -177,20 +177,6 @@ func PassthroughJSONResponse(c *gin.Context, resp *http.Response, target interfa
 }
 
 func LogUpstreamResponseHeaders(c *gin.Context, resp *http.Response, envCfg *config.EnvConfig, apiType string) {
-	if !envCfg.EnableResponseLogs || !envCfg.IsDevelopment() || resp == nil {
-		return
-	}
-
-	respHeaders := make(map[string]string)
-	for key, values := range resp.Header {
-		if len(values) > 0 {
-			respHeaders[key] = values[0]
-		}
-	}
-	respHeadersJSON, _ := json.MarshalIndent(respHeaders, "", "  ")
-	requestLogToConsole(c, "[%s-Response] 响应头:\n%s", apiType, string(respHeadersJSON))
-	rawHeadersJSON, _ := json.Marshal(respHeaders)
-	requestLogToFile(c, "[%s-Response] 响应头:\n%s", apiType, string(rawHeadersJSON))
 }
 
 func LogUpstreamResponseBody(c *gin.Context, bodyBytes []byte, envCfg *config.EnvConfig, apiType string) {
@@ -236,16 +222,11 @@ func SendRequestWithLifecycleTrace(req *http.Request, upstream *config.UpstreamC
 
 	if envCfg.EnableRequestLogs {
 		requestLogToConsoleFromRequest(req, "[%s-Request-URL] 实际请求URL: %s", apiType, req.URL.String())
-		requestLogToConsoleFromRequest(req, "[%s-Request-Method] 请求方法: %s", apiType, req.Method)
 		requestLogToFileFromRequest(req, "[%s-Request-URL] 实际请求URL: %s", apiType, req.URL.String())
-		requestLogToFileFromRequest(req, "[%s-Request-Method] 请求方法: %s", apiType, req.Method)
 		if upstream.ProxyURL != "" {
 			redactedProxyURL := utils.RedactURLCredentials(upstream.ProxyURL)
 			requestLogToConsoleFromRequest(req, "[%s-Request-Proxy] 使用代理: %s", apiType, redactedProxyURL)
 			requestLogToFileFromRequest(req, "[%s-Request-Proxy] 使用代理: %s", apiType, redactedProxyURL)
-		}
-		if envCfg.IsDevelopment() {
-			logRequestDetails(req, envCfg, apiType)
 		}
 	}
 
@@ -273,38 +254,6 @@ func withLifecycleTrace(req *http.Request, lifecycleTrace *RequestLifecycleTrace
 	return req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
 }
 
-// logRequestDetails 记录请求详情（仅开发模式）
-// apiType: 接口类型（Messages/Responses/Gemini），用于日志标签前缀
-func logRequestDetails(req *http.Request, envCfg *config.EnvConfig, apiType string) {
-	// 对请求头做敏感信息脱敏
-	reqHeaders := make(map[string]string)
-	for key, values := range req.Header {
-		if len(values) > 0 {
-			reqHeaders[key] = values[0]
-		}
-	}
-	maskedReqHeaders := utils.MaskSensitiveHeaders(reqHeaders)
-	reqHeadersJSON, _ := json.MarshalIndent(maskedReqHeaders, "", "  ")
-	requestLogToConsoleFromRequest(req, "[%s-Request-Headers] 实际请求头:\n%s", apiType, string(reqHeadersJSON))
-	rawReqHeadersJSON, _ := json.Marshal(maskedReqHeaders)
-	requestLogToFileFromRequest(req, "[%s-Request-Headers] 实际请求头:\n%s", apiType, string(rawReqHeadersJSON))
-
-	if req.Body != nil {
-		contentType := req.Header.Get("Content-Type")
-		if strings.HasPrefix(strings.ToLower(contentType), "multipart/form-data") {
-			requestLogToConsoleFromRequest(req, "[%s-Request-Body] 实际请求体: [multipart/form-data omitted]", apiType)
-			requestLogToFileFromRequest(req, "[%s-Request-Body] 实际请求体: [multipart/form-data omitted]", apiType)
-			return
-		}
-		bodyBytes, err := io.ReadAll(req.Body)
-		if err == nil {
-			req.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-			requestLogToConsoleFromRequest(req, "[%s-Request-Body] 实际请求体:\n%s", apiType, utils.FormatJSONBytesForLog(bodyBytes, consoleJSONTextLimit))
-			requestLogToFileFromRequest(req, "[%s-Request-Body] 实际请求体:\n%s", apiType, utils.FormatJSONBytesRaw(bodyBytes))
-		}
-	}
-}
-
 // LogOriginalRequest 记录原始请求信息
 func LogOriginalRequest(c *gin.Context, bodyBytes []byte, envCfg *config.EnvConfig, apiType string) {
 	if !envCfg.EnableRequestLogs {
@@ -323,18 +272,6 @@ func LogOriginalRequest(c *gin.Context, bodyBytes []byte, envCfg *config.EnvConf
 			requestLogToConsole(c, "[Request-OriginalBody] 原始请求体:\n%s", utils.FormatJSONBytesForLog(bodyBytes, consoleJSONTextLimit))
 			requestLogToFile(c, "[Request-OriginalBody] 原始请求体:\n%s", utils.FormatJSONBytesRaw(bodyBytes))
 		}
-
-		sanitizedHeaders := make(map[string]string)
-		for key, values := range c.Request.Header {
-			if len(values) > 0 {
-				sanitizedHeaders[key] = values[0]
-			}
-		}
-		maskedHeaders := utils.MaskSensitiveHeaders(sanitizedHeaders)
-		headersJSON, _ := json.MarshalIndent(maskedHeaders, "", "  ")
-		requestLogToConsole(c, "[Request-OriginalHeaders] 原始请求头:\n%s", string(headersJSON))
-		rawHeadersJSON, _ := json.Marshal(maskedHeaders)
-		requestLogToFile(c, "[Request-OriginalHeaders] 原始请求头:\n%s", string(rawHeadersJSON))
 	}
 }
 

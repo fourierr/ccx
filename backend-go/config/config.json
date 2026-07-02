@@ -71,5 +71,7 @@
     "unknownSafeWindowTokens": 32000
   },
   "fuzzyModeEnabled": false,
+  "enableUsageEstimation": false,
+  "enableConversationTracking": false,
   "overrideTtlMinutes": 30
 }

@@ -26,6 +26,7 @@ func handleStreamSuccess(
 	originalReq *types.ResponsesRequest,
 	originalRequestJSON []byte,
 	timeouts common.StreamPreflightTimeouts,
+	enableUsageEstimation bool,
 ) (*types.Usage, error) {
 	if envCfg.EnableResponseLogs {
 		responseTime := time.Since(startTime).Milliseconds()
@@ -446,27 +447,29 @@ func handleStreamSuccess(
 			eventToSend := event
 			if isResponsesCompletedEvent(event) {
 				completedEventSent = true
-				if !hasUsage {
-					// 上游完全没有 usage，注入本地估算
-					var injectedInput, injectedOutput int
-					eventToSend, injectedInput, injectedOutput = injectResponsesUsageToCompletedEventWithLogTag(event, originalRequestJSON, outputTextBuffer.String(), envCfg, common.RequestLogTag(c))
-					// 更新 collectedUsage 以便最终日志输出
-					collectedUsage.InputTokens = injectedInput
-					collectedUsage.OutputTokens = injectedOutput
-					collectedUsage.TotalTokens = calculateTotalTokensWithCache(
-						injectedInput,
-						injectedOutput,
-						collectedUsage.CacheReadInputTokens,
-						collectedUsage.CacheCreationInputTokens,
-						collectedUsage.CacheCreation5mInputTokens,
-						collectedUsage.CacheCreation1hInputTokens,
-					)
-					if envCfg.EnableResponseLogs && envCfg.ShouldLog("debug") {
-						common.RequestLogf(c, "[Responses-Stream-Token] 上游无usage, 注入本地估算: input=%d, output=%d", injectedInput, injectedOutput)
+				if enableUsageEstimation {
+					if !hasUsage {
+						// 上游完全没有 usage，注入本地估算
+						var injectedInput, injectedOutput int
+						eventToSend, injectedInput, injectedOutput = injectResponsesUsageToCompletedEventWithLogTag(event, originalRequestJSON, outputTextBuffer.String(), envCfg, common.RequestLogTag(c))
+						// 更新 collectedUsage 以便最终日志输出
+						collectedUsage.InputTokens = injectedInput
+						collectedUsage.OutputTokens = injectedOutput
+						collectedUsage.TotalTokens = calculateTotalTokensWithCache(
+							injectedInput,
+							injectedOutput,
+							collectedUsage.CacheReadInputTokens,
+							collectedUsage.CacheCreationInputTokens,
+							collectedUsage.CacheCreation5mInputTokens,
+							collectedUsage.CacheCreation1hInputTokens,
+						)
+						if envCfg.EnableResponseLogs && envCfg.ShouldLog("debug") {
+							common.RequestLogf(c, "[Responses-Stream-Token] 上游无usage, 注入本地估算: input=%d, output=%d", injectedInput, injectedOutput)
+						}
+					} else if needTokenPatch {
+						// 需要修补虚假值
+						eventToSend = patchResponsesCompletedEventUsageWithLogTag(event, originalRequestJSON, outputTextBuffer.String(), &collectedUsage, envCfg, common.RequestLogTag(c))
 					}
-				} else if needTokenPatch {
-					// 需要修补虚假值
-					eventToSend = patchResponsesCompletedEventUsageWithLogTag(event, originalRequestJSON, outputTextBuffer.String(), &collectedUsage, envCfg, common.RequestLogTag(c))
 				}
 				// 改写 model 字段（仅 passthrough 场景，转换器已处理好转换场景）
 				if envCfg.RewriteResponseModel && !needConvert && originalReq != nil && originalReq.Model != "" {
@@ -644,21 +647,23 @@ streamEnd:
 			eventToSend := event
 			if isResponsesCompletedEvent(event) {
 				completedEventSent = true
-				if !hasUsage {
-					var injectedInput, injectedOutput int
-					eventToSend, injectedInput, injectedOutput = injectResponsesUsageToCompletedEventWithLogTag(event, originalRequestJSON, outputTextBuffer.String(), envCfg, common.RequestLogTag(c))
-					collectedUsage.InputTokens = injectedInput
-					collectedUsage.OutputTokens = injectedOutput
-					collectedUsage.TotalTokens = calculateTotalTokensWithCache(
-						injectedInput,
-						injectedOutput,
-						collectedUsage.CacheReadInputTokens,
-						collectedUsage.CacheCreationInputTokens,
-						collectedUsage.CacheCreation5mInputTokens,
-						collectedUsage.CacheCreation1hInputTokens,
-					)
-				} else if needTokenPatch {
-					eventToSend = patchResponsesCompletedEventUsageWithLogTag(event, originalRequestJSON, outputTextBuffer.String(), &collectedUsage, envCfg, common.RequestLogTag(c))
+				if enableUsageEstimation {
+					if !hasUsage {
+						var injectedInput, injectedOutput int
+						eventToSend, injectedInput, injectedOutput = injectResponsesUsageToCompletedEventWithLogTag(event, originalRequestJSON, outputTextBuffer.String(), envCfg, common.RequestLogTag(c))
+						collectedUsage.InputTokens = injectedInput
+						collectedUsage.OutputTokens = injectedOutput
+						collectedUsage.TotalTokens = calculateTotalTokensWithCache(
+							injectedInput,
+							injectedOutput,
+							collectedUsage.CacheReadInputTokens,
+							collectedUsage.CacheCreationInputTokens,
+							collectedUsage.CacheCreation5mInputTokens,
+							collectedUsage.CacheCreation1hInputTokens,
+						)
+					} else if needTokenPatch {
+						eventToSend = patchResponsesCompletedEventUsageWithLogTag(event, originalRequestJSON, outputTextBuffer.String(), &collectedUsage, envCfg, common.RequestLogTag(c))
+					}
 				}
 				// 改写 model 字段（仅 passthrough 场景，转换器已处理好转换场景）
 				if envCfg.RewriteResponseModel && !needConvert && originalReq != nil && originalReq.Model != "" {

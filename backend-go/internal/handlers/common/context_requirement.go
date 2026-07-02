@@ -6,7 +6,6 @@ import (
 	"github.com/BenedictKing/ccx/internal/config"
 	"github.com/BenedictKing/ccx/internal/scheduler"
 	"github.com/BenedictKing/ccx/internal/utils"
-	"github.com/gin-gonic/gin"
 )
 
 // BuildMessagesContextRequirement 估算 Messages 请求上下文需求。
@@ -65,31 +64,6 @@ func ApplyAgentModelProfile(requirement *scheduler.ContextRequirement, requestMo
 		return
 	}
 	requirement.MinimumContextWindowTokens = resolved.Profile.ContextWindowTokens
-}
-
-// LogContextEstimate 记录本次原始请求的上下文估算，便于排查上下文路由过滤。
-func LogContextEstimate(c *gin.Context, apiType string, requirement *scheduler.ContextRequirement) {
-	if c == nil || requirement == nil {
-		return
-	}
-	requestLogToConsole(c, "[%s-ContextEstimate] 原始请求上下文估算: input=%d, outputBudget=%d, totalBudget=%d, explicitOutput=%t, agentProfileWindow=%d, skipWindowValidation=%t",
-		apiType,
-		requirement.InputTokens,
-		requirement.OutputTokens,
-		requirement.RequiredTokens,
-		requirement.ExplicitOutputMax,
-		requirement.MinimumContextWindowTokens,
-		requirement.SkipWindowValidation,
-	)
-	requestLogToFile(c, "[%s-ContextEstimate] 原始请求上下文估算: input=%d, outputBudget=%d, totalBudget=%d, explicitOutput=%t, agentProfileWindow=%d, skipWindowValidation=%t",
-		apiType,
-		requirement.InputTokens,
-		requirement.OutputTokens,
-		requirement.RequiredTokens,
-		requirement.ExplicitOutputMax,
-		requirement.MinimumContextWindowTokens,
-		requirement.SkipWindowValidation,
-	)
 }
 
 func extractFirstInt(bodyBytes []byte, keys ...string) (int, bool) {

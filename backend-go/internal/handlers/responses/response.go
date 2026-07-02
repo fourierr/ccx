@@ -30,6 +30,8 @@ func handleSuccess(
 	originalRequestJSON []byte,
 	fuzzyMode bool,
 	timeouts common.StreamPreflightTimeouts,
+	enableUsageEstimation bool,
+	enableConversationTracking bool,
 ) (*types.Usage, error) {
 	defer resp.Body.Close()
 
@@ -51,7 +53,7 @@ func handleSuccess(
 	}
 
 	if isStream {
-		return handleStreamSuccess(c, resp, upstreamType, envCfg, startTime, originalReq, originalRequestJSON, timeouts)
+		return handleStreamSuccess(c, resp, upstreamType, envCfg, startTime, originalReq, originalRequestJSON, timeouts, enableUsageEstimation)
 	}
 
 	// 非流式响应处理
@@ -117,13 +119,14 @@ func handleSuccess(
 		}
 	}
 
-	// Token 补全逻辑
+	// Token 补全逻辑（仅在启用 Usage 估算时执行）
 	originalUsage := responsesResp.Usage
+	if enableUsageEstimation {
+		patchResponsesUsageWithContext(c, responsesResp, originalRequestJSON, envCfg)
+	}
 
-	patchResponsesUsageWithContext(c, responsesResp, originalRequestJSON, envCfg)
-
-	// 更新会话
-	if originalReq.Store == nil || *originalReq.Store {
+	// 更新会话（仅在启用会话追踪时执行）
+	if enableConversationTracking && (originalReq.Store == nil || *originalReq.Store) {
 		sess, err := sessionManager.GetOrCreateSession(originalReq.PreviousResponseID)
 		if err == nil {
 			inputItems, _ := parseInputToItems(originalReq.Input)

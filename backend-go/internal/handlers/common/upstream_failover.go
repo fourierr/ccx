@@ -249,10 +249,9 @@ func TryUpstreamWithAllKeys(
 				}
 			}
 
-			if envCfg.ShouldLog("info") {
-				RequestLogf(c, "[%s-Key] 使用API密钥: %s (BaseURL %d/%d, 尝试 %d/%d)",
-					apiType, utils.MaskAPIKey(apiKey), urlIdx+1, len(urlResults), attempt+1, maxRetries)
-			}
+
+
+
 
 			// 使用深拷贝避免并发修改问题
 			upstreamCopy := upstream.Clone()

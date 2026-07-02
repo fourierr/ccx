@@ -52,7 +52,7 @@ func TestHandleSuccess_PreservesPreviousResponseID(t *testing.T) {
 		Input:              "hello",
 	}
 
-	if _, err := handleSuccess(c, resp, provider, "responses", envCfg, sessionManager, time.Now(), originalReq, []byte(`{"model":"gpt-5","input":"hello"}`), false, common.StreamPreflightTimeouts{}); err != nil {
+	if _, err := handleSuccess(c, resp, provider, "responses", envCfg, sessionManager, time.Now(), originalReq, []byte(`{"model":"gpt-5","input":"hello"}`), false, common.StreamPreflightTimeouts{}, false, false); err != nil {
 		t.Fatalf("handleSuccess() err = %v", err)
 	}
 
@@ -114,6 +114,7 @@ func TestHandleStreamSuccess_PostCommitActivityResetsIdleWatchdog(t *testing.T) 
 			InactivityTimeoutMs:   150,
 			ToolCallIdleTimeoutMs: 80,
 		},
+		false,
 	)
 	if err != nil {
 		t.Fatalf("handleStreamSuccess() err = %v", err)
@@ -152,6 +153,7 @@ data: {"type":"response.completed","response":{"status":"completed","usage":{"in
 		&types.ResponsesRequest{Model: "gpt-5"},
 		[]byte(`{"model":"gpt-5","stream":true}`),
 		common.StreamPreflightTimeouts{},
+		false,
 	)
 	if err != nil {
 		t.Fatalf("handleStreamSuccess() err = %v", err)
@@ -198,6 +200,7 @@ data: {"type":"response.failed","response":{"id":"resp_1","status":"failed","err
 		&types.ResponsesRequest{Model: "gpt-5"},
 		[]byte(`{"model":"gpt-5","stream":true}`),
 		common.StreamPreflightTimeouts{},
+		false,
 	)
 	if !errors.Is(err, common.ErrEmptyStreamResponse) {
 		t.Fatalf("handleStreamSuccess() err = %v, want ErrEmptyStreamResponse", err)
@@ -235,6 +238,7 @@ data: {"type":"response.failed","response":{"id":"resp_1","status":"failed","err
 		&types.ResponsesRequest{Model: "gpt-5"},
 		[]byte(`{"model":"gpt-5","stream":true}`),
 		common.StreamPreflightTimeouts{},
+		false,
 	)
 	var blacklistErr *common.ErrBlacklistKey
 	if !errors.As(err, &blacklistErr) {

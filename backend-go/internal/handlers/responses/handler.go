@@ -108,7 +108,6 @@ func handleMultiChannel(
 	if isCompactionV2 && contextRequirement != nil {
 		contextRequirement.SkipWindowValidation = true
 	}
-	common.LogContextEstimate(c, "Responses", contextRequirement)
 	agentRole := ""
 	if ac := common.AgentContextFromGin(c); ac != nil {
 		agentRole = ac.AgentRole
@@ -209,7 +208,7 @@ func handleMultiChannel(
 					}
 					responsesReq.TransformerMetadata["codex_tool_compat_enabled"] = upstreamCopy.IsCodexToolCompatEnabled() || upstreamCopy.CodexNativeToolPassthrough
 					timeouts := common.ResolveStreamPreflightTimeouts(upstreamCopy, metricsManager.GetCircuitBreakerConfig())
-					return handleSuccess(c, resp, provider, upstream.ServiceType, envCfg, sessionManager, startTime, &responsesReq, actualRequestBody, cfgManager.GetFuzzyModeEnabled(), timeouts)
+					return handleSuccess(c, resp, provider, upstream.ServiceType, envCfg, sessionManager, startTime, &responsesReq, actualRequestBody, cfgManager.GetFuzzyModeEnabled(), timeouts, cfg.EnableUsageEstimation, cfg.EnableConversationTracking)
 				},
 				responsesReq.Model,
 				"",
@@ -281,7 +280,6 @@ func handleSingleChannel(
 	if isCompactionV2 && contextRequirement != nil {
 		contextRequirement.SkipWindowValidation = true
 	}
-	common.LogContextEstimate(c, "Responses", contextRequirement)
 	if err := channelScheduler.ValidateUpstreamContext(scheduler.ChannelKindResponses, responsesReq.Model, upstream, contextRequirement); err != nil {
 		c.JSON(400, gin.H{
 			"error": err.Error(),
@@ -346,9 +344,7 @@ func handleSingleChannel(
 			return req, err
 		},
 		func(apiKey string) {
-			if err := cfgManager.DeprioritizeAPIKey(apiKey); err != nil {
-				common.RequestLogf(c, "[Responses-Key] 警告: 密钥降级失败: %v", err)
-			}
+			_ = cfgManager.DeprioritizeAPIKey(apiKey)
 		},
 		nil,
 		nil,
@@ -359,7 +355,7 @@ func handleSingleChannel(
 			}
 			responsesReq.TransformerMetadata["codex_tool_compat_enabled"] = upstreamCopy.IsCodexToolCompatEnabled() || upstreamCopy.CodexNativeToolPassthrough
 			timeouts := common.ResolveStreamPreflightTimeouts(upstreamCopy, metricsManager.GetCircuitBreakerConfig())
-			return handleSuccess(c, resp, provider, upstream.ServiceType, envCfg, sessionManager, startTime, &responsesReq, actualRequestBody, cfgManager.GetFuzzyModeEnabled(), timeouts)
+			return handleSuccess(c, resp, provider, upstream.ServiceType, envCfg, sessionManager, startTime, &responsesReq, actualRequestBody, cfgManager.GetFuzzyModeEnabled(), timeouts, cfg.EnableUsageEstimation, cfg.EnableConversationTracking)
 		},
 		responsesReq.Model,
 		"",
@@ -367,8 +363,8 @@ func handleSingleChannel(
 		channelScheduler.GetChannelLogStore(scheduler.ChannelKindResponses),
 	)
 
-	// 追踪对话（驾驶舱显示）
-	if handled && successKey != "" {
+	// 追踪对话（驾驶舱显示，仅在启用会话追踪时执行）
+	if cfg.EnableConversationTracking && handled && successKey != "" {
 		lastUserMsg, _ := c.Get("lastUserMessage")
 		lastUserMsgStr, _ := lastUserMsg.(string)
 		userMsgCount, _ := c.Get("userMessageCount")
