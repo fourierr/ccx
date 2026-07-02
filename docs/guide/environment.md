@@ -229,7 +229,7 @@ ccx --config ~/.config/ccx/config.json --statedir ~/.local/state/ccx --logdir ~/
 ```
 
 - `--config PATH`：指定配置文件路径。
-- `--statedir DIR`：指定运行时状态目录；`metrics.db`、`conversation_state.json`、`scheduled_recovery_state.json` 会写入该目录，未指定时保持默认 `.config`。
+- `--statedir DIR`：指定运行时状态目录；`metrics.db`、`conversation_state.json`、`scheduled_recovery_state.json` 会写入该目录，未指定时保持默认 `.config`。使用 `none` 或 `null` 可禁用所有运行时状态文件写入（纯内存模式），适合无状态容器、`systemd` 等每次启动都是干净环境的场景；此时 `METRICS_PERSISTENCE_ENABLED` 会被强制覆盖为 `false`。
 - `--logdir DIR`：指定日志目录；优先级高于 `LOG_DIR` 环境变量。使用 `none` 或 `null` 可禁用日志文件写入（仅输出到控制台），适合 systemd/journald 等环境。
 - `--help`：查看完整命令行参数说明。
 - 路径中的 `~` / `~/...` 会按当前用户主目录展开。

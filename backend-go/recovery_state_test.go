@@ -72,3 +72,21 @@ func TestSaveScheduledRecoveryLastCheck_RoundTrip(t *testing.T) {
 		t.Fatalf("round trip time = %s, want %s", got.Format(time.RFC3339Nano), want.UTC().Format(time.RFC3339Nano))
 	}
 }
+
+func TestSaveScheduledRecoveryLastCheck_EmptyPathNoop(t *testing.T) {
+	// --statedir none 时路径为空，应直接返回 nil 且不创建任何文件
+	if err := saveScheduledRecoveryLastCheck("", time.Now().UTC()); err != nil {
+		t.Fatalf("saveScheduledRecoveryLastCheck(\"\") error = %v, want nil", err)
+	}
+}
+
+func TestLoadScheduledRecoveryLastCheck_EmptyPathNoop(t *testing.T) {
+	// --statedir none 时路径为空，应直接返回零值且不读文件
+	got, err := loadScheduledRecoveryLastCheck("")
+	if err != nil {
+		t.Fatalf("loadScheduledRecoveryLastCheck(\"\") error = %v, want nil", err)
+	}
+	if !got.IsZero() {
+		t.Fatalf("loadScheduledRecoveryLastCheck(\"\") = %s, want zero time", got.Format(time.RFC3339Nano))
+	}
+}

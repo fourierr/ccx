@@ -233,3 +233,58 @@ func TestResolveRuntimePathsLogDirNoneFromEnv(t *testing.T) {
 		})
 	}
 }
+
+func TestResolveRuntimePathsStateDirNone(t *testing.T) {
+	tests := []struct {
+		name     string
+		stateDir string
+	}{
+		{"--statedir none", "none"},
+		{"--statedir null", "null"},
+		{"--statedir NONE", "NONE"},
+		{"--statedir NULL", "NULL"},
+		{"--statedir None", "None"},
+		{"--statedir Null", "Null"},
+		{"--statedir '  none  '", "  none  "},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := resolveRuntimePaths(cliOptions{StateDir: tt.stateDir}, &config.EnvConfig{LogDir: "logs"})
+			if err != nil {
+				t.Fatalf("resolveRuntimePaths() error = %v", err)
+			}
+			if got.StateDir != "none" {
+				t.Fatalf("StateDir = %q, want %q", got.StateDir, "none")
+			}
+			if got.MetricsDBPath != "" {
+				t.Fatalf("MetricsDBPath = %q, want empty", got.MetricsDBPath)
+			}
+			if got.ConversationStatePath != "" {
+				t.Fatalf("ConversationStatePath = %q, want empty", got.ConversationStatePath)
+			}
+			if got.ScheduledRecoveryStatePath != "" {
+				t.Fatalf("ScheduledRecoveryStatePath = %q, want empty", got.ScheduledRecoveryStatePath)
+			}
+		})
+	}
+}
+
+func TestResolveRuntimePathsStateDirKeepsPaths(t *testing.T) {
+	dir := t.TempDir()
+	got, err := resolveRuntimePaths(cliOptions{StateDir: dir}, &config.EnvConfig{LogDir: "logs"})
+	if err != nil {
+		t.Fatalf("resolveRuntimePaths() error = %v", err)
+	}
+	want := filepath.Join(dir, metricsDBFile)
+	if got.StateDir != dir {
+		t.Fatalf("StateDir = %q, want %q", got.StateDir, dir)
+	}
+	if got.MetricsDBPath != want {
+		t.Fatalf("MetricsDBPath = %q, want %q", got.MetricsDBPath, want)
+	}
+	if got.ConversationStatePath == "" || got.ScheduledRecoveryStatePath == "" {
+		t.Fatalf("state paths should be populated when statedir is normal, got conv=%q recovery=%q",
+			got.ConversationStatePath, got.ScheduledRecoveryStatePath)
+	}
+}

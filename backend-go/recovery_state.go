@@ -13,6 +13,10 @@ type scheduledRecoveryState struct {
 }
 
 func loadScheduledRecoveryLastCheck(path string) (time.Time, error) {
+	// 空路径表示禁用持久化（--statedir none），直接返回零值
+	if path == "" {
+		return time.Time{}, nil
+	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -40,6 +44,10 @@ func loadScheduledRecoveryLastCheck(path string) (time.Time, error) {
 }
 
 func saveScheduledRecoveryLastCheck(path string, checkedAt time.Time) error {
+	// 空路径表示禁用持久化（--statedir none），跳过文件写入
+	if path == "" {
+		return nil
+	}
 	state := scheduledRecoveryState{LastCheckUTC: checkedAt.UTC().Format(time.RFC3339Nano)}
 	data, err := json.Marshal(state)
 	if err != nil {

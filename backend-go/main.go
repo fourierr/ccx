@@ -88,9 +88,9 @@ func parseCLIArgs(args []string) (cliOptions, error) {
 	fs.BoolVar(&showHelp, "help", false, "显示帮助")
 	fs.BoolVar(&showVersion, "version", false, "显示版本")
 	fs.BoolVar(&showVersion, "v", false, "显示版本")
-	fs.StringVar(&opts.ConfigPath, "config", "", "指定配置文件路径")
+	fs.StringVar(&opts.ConfigPath, "config", "config/config.json", "指定配置文件路径")
 	fs.StringVar(&opts.StateDir, "statedir", "", "指定运行时状态目录")
-	fs.StringVar(&opts.LogDir, "logdir", "", "指定日志目录")
+	fs.StringVar(&opts.LogDir, "logdir", "log", "指定日志目录")
 	fs.StringVar(&opts.BackupDir, "backupdir", "", "指定配置备份目录")
 
 	if err := fs.Parse(args); err != nil {
@@ -124,6 +124,8 @@ func writeCLIHelp(out io.Writer) {
   --version, -v       显示版本信息并退出
   --config PATH       指定运行时配置文件路径，默认 .config/config.json
   --statedir DIR      指定运行时状态目录，默认 .config
+                      使用 none 或 null 禁用所有运行时状态文件写入
+                      （metrics.db / conversation_state.json / scheduled_recovery_state.json）
   --logdir DIR        指定日志目录，优先级高于 LOG_DIR，默认 logs
                       使用 none 或 null 禁用日志文件写入（仅输出到控制台）
 	  --backupdir DIR     指定配置备份目录，默认 配置文件同级目录下的 backups
@@ -131,11 +133,13 @@ func writeCLIHelp(out io.Writer) {
 示例:
   ccx --config ~/.config/ccx/config.json --statedir ~/.local/state/ccx --logdir ~/.local/state/ccx/logs --backupdir ~/.local/state/ccx/backups
   ccx --logdir none   # 禁用日志文件，仅输出到控制台
+  ccx --statedir none # 禁用运行时状态文件，仅保留内存中的指标与对话状态
 
 说明:
   --config 只改变配置文件位置。
   --statedir 会让 metrics.db、conversation_state.json、scheduled_recovery_state.json
-  写入指定目录；不指定时保持默认 .config。
+  写入指定目录；不指定时保持默认 .config。使用 none 或 null 可禁用所有运行时状态文件写入，
+  适合无状态容器、systemd 等每次启动都是干净环境的场景。
   --logdir 只影响日志目录。使用 none 或 null 可禁用日志文件写入，适合 systemd/journald 等环境。
 	  --backupdir 只影响配置备份目录，不指定时默认为配置文件同级目录下的 backups。
 `)
@@ -181,20 +185,38 @@ func resolveRuntimePaths(opts cliOptions, envCfg *config.EnvConfig) (runtimePath
 		configPath = expandedConfigPath
 	}
 
-	stateDir := defaultStateDir
-	if opts.StateDir != "" {
-		expandedStateDir, err := expandUserPath(opts.StateDir)
+	// 备份目录：CLI > 默认（配置文件同级 backups）
+	backupDir := filepath.Join(filepath.Dir(configPath), "backups")
+	if opts.BackupDir != "" {
+		expandedBackupDir, err := expandUserPath(opts.BackupDir)
 		if err != nil {
-			return runtimePaths{}, fmt.Errorf("解析运行时状态目录失败: %w", err)
+			return runtimePaths{}, fmt.Errorf("解析配置备份目录失败: %w", err)
 		}
-		stateDir = expandedStateDir
+		backupDir = expandedBackupDir
+	}
+
+	// 禁用运行时状态 sentinel 归一化（none/null 不区分大小写）
+	// 当用户显式指定 --statedir none 时，不输出任何运行时状态文件
+	// （metrics.db / conversation_state.json / scheduled_recovery_state.json）
+	stateDir := defaultStateDir
+	stateDirDisabled := false
+	if opts.StateDir != "" {
+		if logger.IsLogDisabled(opts.StateDir) {
+			stateDir = "none"
+			stateDirDisabled = true
+		} else {
+			expandedStateDir, err := expandUserPath(opts.StateDir)
+			if err != nil {
+				return runtimePaths{}, fmt.Errorf("解析运行时状态目录失败: %w", err)
+			}
+			stateDir = expandedStateDir
+		}
 	}
 
 	logDir := envCfg.LogDir
 	if opts.LogDir != "" {
 		logDir = opts.LogDir
 	}
-
 	// 禁用日志文件 sentinel 归一化（none/null 不区分大小写）
 	if logger.IsLogDisabled(logDir) {
 		logDir = "none"
@@ -207,17 +229,7 @@ func resolveRuntimePaths(opts cliOptions, envCfg *config.EnvConfig) (runtimePath
 		logDir = expandedLogDir
 	}
 
-	// 备份目录：CLI > 默认（配置文件同级 backups）
-	backupDir := filepath.Join(filepath.Dir(configPath), "backups")
-	if opts.BackupDir != "" {
-		expandedBackupDir, err := expandUserPath(opts.BackupDir)
-		if err != nil {
-			return runtimePaths{}, fmt.Errorf("解析配置备份目录失败: %w", err)
-		}
-		backupDir = expandedBackupDir
-	}
-
-	return runtimePaths{
+	paths := runtimePaths{
 		ConfigPath:                 configPath,
 		StateDir:                   stateDir,
 		MetricsDBPath:              filepath.Join(stateDir, metricsDBFile),
@@ -225,7 +237,18 @@ func resolveRuntimePaths(opts cliOptions, envCfg *config.EnvConfig) (runtimePath
 		ScheduledRecoveryStatePath: filepath.Join(stateDir, scheduledRecoveryStateFileName),
 		LogDir:                     logDir,
 		BackupDir:                  backupDir,
-	}, nil
+	}
+
+	if stateDirDisabled {
+		// 清空三个 state 路径：让 conversation.NewConversationTracker
+		// （空路径即不持久化）和 saveScheduledRecoveryLastCheck（需补空路径守卫）
+		// 跳过文件 IO；metrics 持久化由 main 后续根据 paths.MetricsDBPath == "" 强制关闭 SQLiteStore。
+		paths.MetricsDBPath = ""
+		paths.ConversationStatePath = ""
+		paths.ScheduledRecoveryStatePath = ""
+	}
+
+	return paths, nil
 }
 
 func main() {
@@ -258,6 +281,11 @@ func main() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "解析运行时路径失败: %v\n", err)
 		os.Exit(2)
+	}
+
+	// --statedir none 时强制关闭指标持久化，避免 SQLiteStore 重新建库
+	if paths.MetricsDBPath == "" && envCfg.MetricsPersistenceEnabled {
+		envCfg.MetricsPersistenceEnabled = false
 	}
 
 	// 初始化日志系统（必须在其他初始化之前）
