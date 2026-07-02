@@ -38,10 +38,9 @@ func Handler(
 	channelScheduler *scheduler.ChannelScheduler,
 ) gin.HandlerFunc {
 	return gin.HandlerFunc(func(c *gin.Context) {
-		middleware.ProxyAuthMiddleware(envCfg)(c)
-		if c.IsAborted() {
-			return
-		}
+		// 提取客户端提供的 Token（优先 x-api-key，其次 Authorization: Bearer，最后 x-goog-api-key）
+		clientToken := middleware.GetAPIKey(c)
+		c.Set(middleware.ClientBearerTokenKey, clientToken)
 
 		operation := extractOperation(c.Request.URL.Path)
 		if operation == "" {
@@ -237,6 +236,17 @@ func handleMultiChannel(
 				return common.MultiChannelAttemptResult{}
 			}
 
+			// 非透传模式需要验证 PROXY_ACCESS_KEY
+			if !upstream.IsPassThroughBearerEnabled() {
+				clientToken, _ := c.Get(middleware.ClientBearerTokenKey)
+				token, _ := clientToken.(string)
+				if !envCfg.IsValidProxyAccessKey(token) {
+					c.JSON(401, gin.H{"error": "Invalid proxy access key"})
+					c.Abort()
+					return common.MultiChannelAttemptResult{}
+				}
+			}
+
 			baseURLs := upstream.GetAllBaseURLs()
 			sortedURLResults := channelScheduler.GetSortedURLsForChannel(scheduler.ChannelKindImages, channelIndex, baseURLs)
 			handled, successKey, successBaseURLIdx, failoverErr, usage, lastErr := common.TryUpstreamWithAllKeys(
@@ -252,6 +262,14 @@ func handleMultiChannel(
 				bodyBytes,
 				isStream,
 				func(upstream *config.UpstreamConfig, failedKeys map[string]bool) (string, error) {
+					if upstream.IsPassThroughBearerEnabled() {
+						clientToken, _ := c.Get(middleware.ClientBearerTokenKey)
+						token, _ := clientToken.(string)
+						if token == "" {
+							return "", fmt.Errorf("pass-through mode requires client bearer token")
+						}
+						return token, nil
+					}
 					return cfgManager.GetNextImagesAPIKey(upstream, failedKeys)
 				},
 				func(c *gin.Context, upstreamCopy *config.UpstreamConfig, apiKey string) (*http.Request, error) {
@@ -309,7 +327,19 @@ func handleSingleChannel(
 		imagesErrorResponse(c, http.StatusServiceUnavailable, "No Images upstream configured", "service_unavailable", "service_unavailable")
 		return
 	}
-	if len(upstream.APIKeys) == 0 {
+
+	// 非透传模式需要验证 PROXY_ACCESS_KEY
+	if !upstream.IsPassThroughBearerEnabled() {
+		clientToken, _ := c.Get(middleware.ClientBearerTokenKey)
+		token, _ := clientToken.(string)
+		if !envCfg.IsValidProxyAccessKey(token) {
+			c.JSON(401, gin.H{"error": "Invalid proxy access key"})
+			c.Abort()
+			return
+		}
+	}
+
+	if len(upstream.APIKeys) == 0 && !upstream.IsPassThroughBearerEnabled() {
 		imagesErrorResponse(c, http.StatusServiceUnavailable, fmt.Sprintf("No API keys configured for upstream \"%s\"", upstream.Name), "service_unavailable", "service_unavailable")
 		return
 	}
@@ -330,6 +360,14 @@ func handleSingleChannel(
 		bodyBytes,
 		isStream,
 		func(upstream *config.UpstreamConfig, failedKeys map[string]bool) (string, error) {
+			if upstream.IsPassThroughBearerEnabled() {
+				clientToken, _ := c.Get(middleware.ClientBearerTokenKey)
+				token, _ := clientToken.(string)
+				if token == "" {
+					return "", fmt.Errorf("pass-through mode requires client bearer token")
+				}
+				return token, nil
+			}
 			return cfgManager.GetNextImagesAPIKey(upstream, failedKeys)
 		},
 		func(c *gin.Context, upstreamCopy *config.UpstreamConfig, apiKey string) (*http.Request, error) {

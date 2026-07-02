@@ -9,6 +9,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// ClientBearerTokenKey 是存储客户端 Bearer token 的 Gin Context Key。
+// 透传模式下，handler 从 context 中取出此值作为上游 API Key。
+const ClientBearerTokenKey = "client_bearer_token"
+
 // WebAuthMiddleware Web 访问控制中间件
 func WebAuthMiddleware(envCfg *config.EnvConfig, cfgManager *config.ConfigManager) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -56,7 +60,7 @@ func WebAuthMiddleware(envCfg *config.EnvConfig, cfgManager *config.ConfigManage
 
 		// 检查访问密钥（管理 API + 管理端点）
 		if strings.HasPrefix(path, "/api") || strings.HasPrefix(path, "/admin") {
-			providedKey := getAPIKey(c)
+			providedKey := GetAPIKey(c)
 
 			// 记录认证尝试
 			clientIP := c.ClientIP()
@@ -125,8 +129,8 @@ func isStaticResource(path string) bool {
 	return false
 }
 
-// getAPIKey 获取 API 密钥
-func getAPIKey(c *gin.Context) string {
+// GetAPIKey 获取 API 密钥（导出供 handler 使用）
+func GetAPIKey(c *gin.Context) string {
 	// 从 header 获取
 	if key := c.GetHeader("x-api-key"); key != "" {
 		return key
@@ -146,9 +150,10 @@ func getAPIKey(c *gin.Context) string {
 }
 
 // ProxyAuthMiddleware 代理访问控制中间件
+// 对于非透传模式的渠道，验证客户端提供的密钥是否匹配 PROXY_ACCESS_KEY。
 func ProxyAuthMiddleware(envCfg *config.EnvConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		providedKey := getAPIKey(c)
+		providedKey := GetAPIKey(c)
 
 		if !envCfg.IsValidProxyAccessKey(providedKey) {
 			if envCfg.ShouldLog("warn") {

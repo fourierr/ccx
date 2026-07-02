@@ -436,8 +436,8 @@ func (cm *ConfigManager) validateChannelKeys() bool {
 			status = "active"
 		}
 
-		// 如果是 active 状态但没有配置 key，自动设为 suspended
-		if status == "active" && len(upstream.APIKeys) == 0 {
+		// 如果是 active 状态但没有配置 key（非透传模式），自动设为 suspended
+		if status == "active" && len(upstream.APIKeys) == 0 && !upstream.IsPassThroughBearerEnabled() {
 			upstream.Status = "suspended"
 			modified = true
 			log.Printf("[Config-Validate] 警告: Messages 渠道 [%d] %s 没有配置 API key，已自动暂停", i, upstream.Name)
@@ -452,8 +452,8 @@ func (cm *ConfigManager) validateChannelKeys() bool {
 			status = "active"
 		}
 
-		// 如果是 active 状态但没有配置 key，自动设为 suspended
-		if status == "active" && len(upstream.APIKeys) == 0 {
+		// 如果是 active 状态但没有配置 key（非透传模式），自动设为 suspended
+		if status == "active" && len(upstream.APIKeys) == 0 && !upstream.IsPassThroughBearerEnabled() {
 			upstream.Status = "suspended"
 			modified = true
 			log.Printf("[Config-Validate] 警告: Responses 渠道 [%d] %s 没有配置 API key，已自动暂停", i, upstream.Name)
@@ -468,8 +468,8 @@ func (cm *ConfigManager) validateChannelKeys() bool {
 			status = "active"
 		}
 
-		// 如果是 active 状态但没有配置 key，自动设为 suspended
-		if status == "active" && len(upstream.APIKeys) == 0 {
+		// 如果是 active 状态但没有配置 key（非透传模式），自动设为 suspended
+		if status == "active" && len(upstream.APIKeys) == 0 && !upstream.IsPassThroughBearerEnabled() {
 			upstream.Status = "suspended"
 			modified = true
 			log.Printf("[Config-Validate] 警告: Chat 渠道 [%d] %s 没有配置 API key，已自动暂停", i, upstream.Name)
@@ -484,8 +484,8 @@ func (cm *ConfigManager) validateChannelKeys() bool {
 			status = "active"
 		}
 
-		// 如果是 active 状态但没有配置 key，自动设为 suspended
-		if status == "active" && len(upstream.APIKeys) == 0 {
+		// 如果是 active 状态但没有配置 key（非透传模式），自动设为 suspended
+		if status == "active" && len(upstream.APIKeys) == 0 && !upstream.IsPassThroughBearerEnabled() {
 			upstream.Status = "suspended"
 			modified = true
 			log.Printf("[Config-Validate] 警告: Gemini 渠道 [%d] %s 没有配置 API key，已自动暂停", i, upstream.Name)
@@ -500,8 +500,8 @@ func (cm *ConfigManager) validateChannelKeys() bool {
 			status = "active"
 		}
 
-		// 如果是 active 状态但没有配置 key，自动设为 suspended
-		if status == "active" && len(upstream.APIKeys) == 0 {
+		// 如果是 active 状态但没有配置 key（非透传模式），自动设为 suspended
+		if status == "active" && len(upstream.APIKeys) == 0 && !upstream.IsPassThroughBearerEnabled() {
 			upstream.Status = "suspended"
 			modified = true
 			log.Printf("[Config-Validate] 警告: Images 渠道 [%d] %s 没有配置 API key，已自动暂停", i, upstream.Name)

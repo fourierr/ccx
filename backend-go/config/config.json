@@ -1,20 +1,45 @@
 {
+  "upstream": [],
+  "responsesUpstream": [
+    {
+      "baseUrl": "https://api.deepseek.com",
+      "apiKeys": null,
+      "serviceType": "openai",
+      "name": "DeepSeek Responses",
+      "description": "DeepSeek API (Responses -> Chat 转换)",
+      "modelMapping": {
+        "deepseek-v4-flash": "deepseek-v4-flash"
+      },
+      "modelCapabilities": {
+        "deepseek-v4-flash": {
+          "contextWindowTokens": 65536,
+          "maxOutputTokens": 8192,
+          "provider": "deepseek",
+          "displayName": "DeepSeek V4 Flash",
+          "capabilities": {
+            "streaming": true,
+            "toolCalls": true
+          }
+        }
+      },
+      "defaultCapability": {},
+      "priority": 0,
+      "status": "active",
+      "passThroughBearer": true,
+      "rateLimitRpm": 1000,
+      "rateLimitWindowMinutes": 1,
+      "rateLimitMaxConcurrent": 5
+    }
+  ],
+  "geminiUpstream": [],
   "chatUpstream": [
     {
+      "baseUrl": "https://api.deepseek.com",
+      "apiKeys": null,
+      "serviceType": "openai",
       "name": "DeepSeek",
       "description": "DeepSeek API",
       "website": "https://platform.deepseek.com",
-      "baseUrl": "https://api.deepseek.com",
-      "serviceType": "openai",
-      "authHeader": "bearer",
-      "apiKeys": [
-        "REMOVED"
-      ],
-      "priority": 0,
-      "status": "active",
-      "rateLimitRpm": 1000,
-      "rateLimitWindowMinutes": 1,
-      "rateLimitMaxConcurrent": 5,
       "modelMapping": {
         "deepseek-v4-flash": "deepseek-v4-flash"
       },
@@ -26,53 +51,25 @@
           "displayName": "DeepSeek Chat",
           "description": "DeepSeek-V4，通用对话与代码生成",
           "capabilities": {
-            "toolCalls": true,
-            "streaming": true
+            "streaming": true,
+            "toolCalls": true
           }
         }
-      }
-    }
-  ],
-  "upstream": [],
-  "responsesUpstream": [
-    {
-      "name": "DeepSeek Responses",
-      "description": "DeepSeek API (Responses -> Chat 转换)",
-      "baseUrl": "https://api.deepseek.com",
-      "serviceType": "openai",
-      "authHeader": "bearer",
-      "apiKeys": [
-        "REMOVED"
-      ],
+      },
+      "defaultCapability": {},
       "priority": 0,
       "status": "active",
+      "passThroughBearer": true,
       "rateLimitRpm": 1000,
       "rateLimitWindowMinutes": 1,
-      "rateLimitMaxConcurrent": 5,
-      "modelMapping": {
-        "deepseek-v4-flash": "deepseek-v4-flash"
-      },
-      "modelCapabilities": {
-        "deepseek-v4-flash": {
-          "contextWindowTokens": 65536,
-          "maxOutputTokens": 8192,
-          "provider": "deepseek",
-          "displayName": "DeepSeek V4 Flash",
-          "capabilities": {
-            "toolCalls": true,
-            "streaming": true
-          }
-        }
-      }
+      "rateLimitMaxConcurrent": 5
     }
   ],
-  "geminiUpstream": [],
-  "imagesUpstream": [],
-  "fuzzyModeEnabled": false,
-  "overrideTtlMinutes": 30,
   "contextRouting": {
     "enabled": true,
     "defaultOutputReserveTokens": 8192,
     "unknownSafeWindowTokens": 32000
-  }
+  },
+  "fuzzyModeEnabled": false,
+  "overrideTtlMinutes": 30
 }

@@ -27,11 +27,9 @@ func Handler(
 	channelScheduler *scheduler.ChannelScheduler,
 ) gin.HandlerFunc {
 	return gin.HandlerFunc(func(c *gin.Context) {
-		// 先进行认证
-		middleware.ProxyAuthMiddleware(envCfg)(c)
-		if c.IsAborted() {
-			return
-		}
+		// 提取客户端提供的 Token（优先 x-api-key，其次 Authorization: Bearer，最后 x-goog-api-key）
+		clientToken := middleware.GetAPIKey(c)
+		c.Set(middleware.ClientBearerTokenKey, clientToken)
 
 		startTime := time.Now()
 
@@ -133,6 +131,17 @@ func handleMultiChannel(
 				return common.MultiChannelAttemptResult{}
 			}
 
+			// 非透传模式需要验证 PROXY_ACCESS_KEY
+			if !upstream.IsPassThroughBearerEnabled() {
+				clientToken, _ := c.Get(middleware.ClientBearerTokenKey)
+				token, _ := clientToken.(string)
+				if !envCfg.IsValidProxyAccessKey(token) {
+					c.JSON(401, gin.H{"error": "Invalid proxy access key"})
+					c.Abort()
+					return common.MultiChannelAttemptResult{}
+				}
+			}
+
 			if isCompactionV2 && needsLocalCompact(upstream) {
 				success, successKey, compactErr := tryLocalCompactV2WithAllKeys(c, upstream, channelIndex, responsesReq.Model, cfgManager, channelScheduler, channelScheduler.GetChannelLogStore(scheduler.ChannelKindResponses), bodyBytes, envCfg, sessionManager)
 				result := common.MultiChannelAttemptResult{Attempted: true, SuccessKey: successKey}
@@ -170,6 +179,14 @@ func handleMultiChannel(
 				bodyBytes,
 				responsesReq.Stream,
 				func(upstream *config.UpstreamConfig, failedKeys map[string]bool) (string, error) {
+					if upstream.IsPassThroughBearerEnabled() {
+						clientToken, _ := c.Get(middleware.ClientBearerTokenKey)
+						token, _ := clientToken.(string)
+						if token == "" {
+							return "", fmt.Errorf("pass-through mode requires client bearer token")
+						}
+						return token, nil
+					}
 					return cfgManager.GetNextResponsesAPIKey(upstream, failedKeys)
 				},
 				func(c *gin.Context, upstreamCopy *config.UpstreamConfig, apiKey string) (*http.Request, error) {
@@ -239,7 +256,18 @@ func handleSingleChannel(
 		return
 	}
 
-	if len(upstream.APIKeys) == 0 {
+	// 非透传模式需要验证 PROXY_ACCESS_KEY
+	if !upstream.IsPassThroughBearerEnabled() {
+		clientToken, _ := c.Get(middleware.ClientBearerTokenKey)
+		token, _ := clientToken.(string)
+		if !envCfg.IsValidProxyAccessKey(token) {
+			c.JSON(401, gin.H{"error": "Invalid proxy access key"})
+			c.Abort()
+			return
+		}
+	}
+
+	if len(upstream.APIKeys) == 0 && !upstream.IsPassThroughBearerEnabled() {
 		c.JSON(503, gin.H{
 			"error": fmt.Sprintf("当前 Responses 渠道 \"%s\" 未配置API密钥", upstream.Name),
 			"code":  "NO_API_KEYS",
@@ -303,6 +331,14 @@ func handleSingleChannel(
 		bodyBytes,
 		responsesReq.Stream,
 		func(upstream *config.UpstreamConfig, failedKeys map[string]bool) (string, error) {
+			if upstream.IsPassThroughBearerEnabled() {
+				clientToken, _ := c.Get(middleware.ClientBearerTokenKey)
+				token, _ := clientToken.(string)
+				if token == "" {
+					return "", fmt.Errorf("pass-through mode requires client bearer token")
+				}
+				return token, nil
+			}
 			return cfgManager.GetNextResponsesAPIKey(upstream, failedKeys)
 		},
 		func(c *gin.Context, upstreamCopy *config.UpstreamConfig, apiKey string) (*http.Request, error) {

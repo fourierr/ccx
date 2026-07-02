@@ -70,6 +70,8 @@ type UpstreamConfig struct {
 	// Claude 协议 thinking 回传配置
 	PassbackReasoningContent bool `json:"passbackReasoningContent,omitempty"` // 将 thinking 块转为 reasoning_content 回传（兼容 mimo 等要求 OpenAI 风格 reasoning_content 的 Claude 协议上游）
 	PassbackThinkingBlocks   bool `json:"passbackThinkingBlocks,omitempty"`   // 将真实 reasoning_content 回传为 content[].thinking（兼容 DeepSeek/GLM 等严格 Claude thinking 上游）
+	// 透传 Bearer 模式：跳过 PROXY_ACCESS_KEY 验证，直接将客户端 Bearer token 作为上游 API Key 转发
+	PassThroughBearer bool `json:"passThroughBearer,omitempty"`
 	// 自定义请求头
 	CustomHeaders map[string]string `json:"customHeaders,omitempty"` // 自定义请求头（覆盖或添加到上游请求）
 	// 渠道级代理
@@ -324,6 +326,11 @@ func (u *UpstreamConfig) IsRateLimitAutoFromHeadersEnabled() bool {
 	return true
 }
 
+// IsPassThroughBearerEnabled 检查是否启用了透传 Bearer 模式。
+func (u *UpstreamConfig) IsPassThroughBearerEnabled() bool {
+	return u.PassThroughBearer
+}
+
 // IsStripImageGenerationToolEnabled 检查是否移除 image_generation 工具（默认 false）。
 func (u *UpstreamConfig) IsStripImageGenerationToolEnabled() bool {
 	return u.StripImageGenerationTool
@@ -396,6 +403,8 @@ type UpstreamUpdate struct {
 	PassbackThinkingBlocks      *bool `json:"passbackThinkingBlocks"`
 	// 自定义请求头
 	CustomHeaders map[string]string `json:"customHeaders"`
+	// 透传 Bearer 模式
+	PassThroughBearer *bool `json:"passThroughBearer"`
 	// 渠道级代理
 	ProxyURL *string `json:"proxyUrl"`
 	// 渠道级请求超时

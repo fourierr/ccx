@@ -102,7 +102,7 @@ func TryUpstreamWithAllKeys(
 	channelIndex int,
 	channelLogStore *metrics.ChannelLogStore,
 ) (handled bool, successKey string, successBaseURLIdx int, failoverErr *FailoverError, usage *types.Usage, lastError error) {
-	if upstream == nil || len(upstream.APIKeys) == 0 {
+	if upstream == nil || (!upstream.IsPassThroughBearerEnabled() && len(upstream.APIKeys) == 0) {
 		return false, "", 0, nil, nil, nil
 	}
 	if metricsManager == nil {
@@ -179,6 +179,9 @@ func TryUpstreamWithAllKeys(
 		originalIdx := urlResult.OriginalIdx // 原始索引用于指标记录
 		failedKeys := make(map[string]bool)  // 每个 BaseURL 重置失败 Key 列表
 		maxRetries := len(upstream.APIKeys)
+		if maxRetries == 0 && upstream.IsPassThroughBearerEnabled() {
+			maxRetries = 1 // 透传模式：至少尝试一次，由 nextAPIKey 回调提供 token
+		}
 
 		for attempt := 0; attempt < maxRetries; attempt++ {
 			// 释放上一轮 attempt 的并发信号量（首次为空操作）
